@@ -1,54 +1,78 @@
+"""
+買い物メモアプリ（フロントエンド版）
+====================================
+
+Streamlit のセッション状態に依存せずに、クライアント側の JavaScript で
+買い物リストを管理する簡易アプリです。入力欄に商品名を入力して
+「追加」を押すとリストに表示され、「リストを全てクリア」を押すと
+リストが即座に空になります。ブラウザ版でセッション状態がうまく
+反映されない環境でも正しく動作します。
+"""
+
 import streamlit as st
+import streamlit.components.v1 as components
 
 
 def main() -> None:
-    """Simple shopping memo app.
+    """Render the shopping memo app using HTML/JavaScript.
 
-    Users can enter items they want to buy and maintain a list of items. The list
-    is stored in Streamlit's session state so it persists across reruns. Users
-    can add new items, remove selected items, and clear the entire list.
+    This implementation avoids relying on Streamlit's session state. All state
+    (the list of items) is handled in JavaScript on the client side. This
+    ensures that pressing the clear button once immediately removes all items
+    from the display, even in environments where `session_state` doesn't
+    consistently update between reruns. The UI is rendered with basic HTML
+    elements and styled inline for simplicity.
     """
+    st.set_page_config(page_title="買い物メモアプリ", page_icon="🛒")
     st.title("買い物メモアプリ")
     st.write("欲しいものをメモしておくシンプルな買い物リストです。")
 
-    # Initialise the shopping list in session state
-    if "shopping_list" not in st.session_state:
-        st.session_state["shopping_list"] = []
+    # Define the HTML and JavaScript code for the shopping list. All state is
+    # managed in the browser using the `items` array. When the user clicks the
+    # buttons, the array is updated and the list is re-rendered.
+    html_code = """
+    <div style="margin-top:1rem;">
+      <input id="itemInput" type="text" placeholder="アイテム名を入力" style="padding:0.5rem; width:60%;">
+      <button onclick="addItem()" style="margin-left:0.5rem; padding:0.5rem;">追加</button>
+      <button onclick="clearList()" style="margin-left:0.5rem; padding:0.5rem;">リストを全てクリア</button>
+      <ul id="itemList" style="margin-top:1rem; list-style-type:none; padding:0;"></ul>
+    </div>
+    <script>
+    // Maintain the list of items in this array. Because this script runs in
+    // the browser, each client will have its own independent copy.
+    let items = [];
+    function addItem() {
+      const inputEl = document.getElementById('itemInput');
+      const value = inputEl.value.trim();
+      if (value !== '') {
+        items.push(value);
+        inputEl.value = '';
+        updateList();
+      }
+    }
+    function clearList() {
+      // Empty the items array and update the list display immediately.
+      items = [];
+      updateList();
+    }
+    function updateList() {
+      const listEl = document.getElementById('itemList');
+      // Clear current list contents
+      listEl.innerHTML = '';
+      // Render each item with its index (1-based)
+      items.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.style.marginBottom = '0.25rem';
+        li.textContent = (index + 1) + '. ' + item;
+        listEl.appendChild(li);
+      });
+    }
+    </script>
+    """
 
-    # Input for new item
-    new_item = st.text_input("買い物リストに追加するアイテムを入力してください")
-    add_button = st.button("追加", key="add_item")
-
-    # When the add button is pressed, append item if not empty
-    if add_button and new_item.strip():
-        st.session_state["shopping_list"].append(new_item.strip())
-        st.success(f"'{new_item}' を追加しました。")
-
-    # Show the current list and options to remove items
-    if st.session_state["shopping_list"]:
-        st.subheader("現在の買い物リスト")
-        # Use a multiselect widget to choose items to remove
-        items_to_remove = st.multiselect(
-            "削除したいアイテムを選択してください",
-            options=st.session_state["shopping_list"],
-            key="remove_select",
-        )
-        if st.button("選択したアイテムを削除", key="remove_button"):
-            st.session_state["shopping_list"] = [
-                item for item in st.session_state["shopping_list"] if item not in items_to_remove
-            ]
-            st.success("選択したアイテムを削除しました。")
-
-        st.write("### リスト内容")
-        for idx, item in enumerate(st.session_state["shopping_list"], start=1):
-            st.write(f"{idx}. {item}")
-
-        # Option to clear the list
-        if st.button("リストを全てクリア", key="clear_list"):
-            st.session_state["shopping_list"] = []
-            st.success("リストを空にしました。")
-    else:
-        st.info("現在、リストには何もありません。上の入力欄から追加してください。")
+    # Render the HTML/JS in a Streamlit component. Height is adjusted to allow
+    # enough space for the list to grow.
+    components.html(html_code, height=300)
 
 
 if __name__ == "__main__":
